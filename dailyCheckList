@@ -1,0 +1,21 @@
+security/JwtService.java
+security/JwtAuthenticationFilter.java
+security/UserDetailsServiceImpl.java
+
+security/SecurityConstants.java
+config/SecurityConfig.java
+controller/AuthController.java
+service/AuthService.java
+dto/request/RegisterRequest.java, LoginRequest.java, RefreshTokenRequest.java
+dto/response/AuthResponse.java, UserInfoResponse.java
+exception/GlobalExceptionHandler.java
+exception/DuplicateResourceException.java
+dto/response/ErrorResponse.java
+
+
+POST /api/auth/register creates user, returns tokens
+POST /api/auth/login authenticates, returns tokens
+POST /api/auth/refresh issues new access token
+POST /api/auth/logout revokes refresh token
+Protected endpoints return 401 without token
+Protected endpoints work with valid token

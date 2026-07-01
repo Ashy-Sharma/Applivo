@@ -1,6 +1,5 @@
 package com.projects.applivo.security;
 
-import io.jsonwebtoken.Jwt;
 import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;

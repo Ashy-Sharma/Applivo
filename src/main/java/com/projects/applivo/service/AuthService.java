@@ -12,6 +12,7 @@ import com.projects.applivo.exception.DuplicateResourceException;
 import com.projects.applivo.repository.UserRepository;
 import com.projects.applivo.security.JwtService;
 import com.projects.applivo.security.RefreshTokenService;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -28,6 +29,8 @@ public class AuthService {
     private final JwtService jwtService;
 
     private final RefreshTokenService refreshTokenService;
+
+    private final TokenBlacklistService blacklistService;
 
     private final PasswordEncoder passwordEncoder;
 
@@ -101,12 +104,16 @@ public class AuthService {
                 .build();
     }
 
-    public void logout(String rawRefreshToken){
+    @Transactional
+    public void logout(String rawRefreshToken, String accessToken){
         refreshTokenService.revoke(rawRefreshToken);
+        blacklistService.blacklist(accessToken);
     }
 
-    public void logoutAll(User user){
+    @Transactional
+    public void logoutAll(User user, String accessToken){
         refreshTokenService.revokeAll(user);
+        blacklistService.blacklist(accessToken);
     }
 
     private UserInfoResponse generateUserInfoResponse(User user){
@@ -118,8 +125,6 @@ public class AuthService {
                 .avatarUrl(user.getAvatarUrl())
                 .build();
     }
-
-
 
 
 }

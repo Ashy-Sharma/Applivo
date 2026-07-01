@@ -1,5 +1,7 @@
 package com.projects.applivo.security;
 
+import com.projects.applivo.entity.BlacklistedToken;
+import com.projects.applivo.service.TokenBlacklistService;
 import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -22,6 +24,8 @@ import java.io.IOException;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
+
+    private final TokenBlacklistService blacklistService;
 
     private final UserDetailsService userDetailsService;
 
@@ -49,7 +53,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         if(username != null && SecurityContextHolder.getContext().getAuthentication() == null){
             UserDetails userDetails = userDetailsService.loadUserByUsername(username);
-            if(jwtService.isTokenValid(jwtToken, userDetails)){
+            if(jwtService.isTokenValid(jwtToken, userDetails) && !blacklistService.isBlacklisted(jwtToken)){
                 UsernamePasswordAuthenticationToken authenticationToken = new UsernamePasswordAuthenticationToken(
                   userDetails,
                   null,

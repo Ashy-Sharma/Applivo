@@ -13,10 +13,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequiredArgsConstructor
@@ -41,16 +38,20 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<Void> logout(@Valid @RequestBody LogoutRequest request){
-        authService.logout(request.getRefreshToken());
+    public ResponseEntity<Void> logout(@Valid @RequestBody LogoutRequest request,
+                                       @RequestHeader("Authorization") String authHeader){
+
+        String jwtToken = authHeader.substring(7);
+        authService.logout(request.getRefreshToken(), jwtToken);
         return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/logout-all")
-    public ResponseEntity<Void> logoutAll(){
+    public ResponseEntity<Void> logoutAll(@RequestHeader("Authorization") String authHeader){
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         User user = (User) authentication.getPrincipal();
-        authService.logoutAll(user);
+        String jwtToken = authHeader.substring(7);
+        authService.logoutAll(user, jwtToken);
         return ResponseEntity.noContent().build();
     }
 

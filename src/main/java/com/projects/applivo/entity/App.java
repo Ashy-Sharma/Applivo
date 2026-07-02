@@ -36,8 +36,9 @@ public class App {
     @Column(length = 50)
     private String category;
 
+    @Builder.Default
     @Column(name = "is_published", nullable = false)
-    private Boolean isPublished;
+    private Boolean isPublished = false;
 
     @Column(name = "created_at", insertable = false, updatable = false)
     private Instant createdAt;

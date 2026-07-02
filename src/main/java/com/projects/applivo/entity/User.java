@@ -41,8 +41,9 @@ public class User implements UserDetails {
     @Column(name = "avatar_url", length = 500)
     private String avatarUrl;
 
+    @Builder.Default
     @Column(name = "is_active", nullable = false)
-    private Boolean isActive;
+    private Boolean isActive = true;
 
     @Column(name = "created_at", insertable = false, updatable = false)
     private Instant createdAt;
@@ -50,9 +51,11 @@ public class User implements UserDetails {
     @Column(name = "updated_at", insertable = false, updatable = false)
     private Instant updatedAt;
 
+    @Builder.Default
     @OneToMany(mappedBy = "developer", fetch = FetchType.LAZY)
     private List<App> apps = new ArrayList<>();
 
+    @Builder.Default
     @OneToMany(mappedBy = "user", fetch = FetchType.LAZY)
     private List<RefreshToken> refreshTokens = new ArrayList<>();
 

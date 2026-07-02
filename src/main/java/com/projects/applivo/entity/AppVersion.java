@@ -33,8 +33,9 @@ public class AppVersion {
     @Column(name = "size_bytes", nullable = false)
     private Long sizeBytes;
 
+    @Builder.Default
     @Column(name = "is_active", nullable = false)
-    private Boolean isActive;
+    private Boolean isActive = true;
 
     @Column(name = "uploaded_at", insertable = false, updatable = false)
     private Instant uploadedAt;

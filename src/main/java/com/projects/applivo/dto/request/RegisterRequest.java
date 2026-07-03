@@ -34,10 +34,8 @@ public class RegisterRequest {
             regexp = "^[A-Za-z0-9_]+$",
             message = "Username may contain only letters, numbers and underscores"
     )
-    @JsonProperty("username")
     private String username;
 
-    @NotNull
     private Role role;
 
     @AssertTrue(message = "Role must be USER or DEVELOPER")

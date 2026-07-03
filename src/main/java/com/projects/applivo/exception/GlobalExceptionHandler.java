@@ -28,6 +28,14 @@ public class GlobalExceptionHandler {
 
     }
 
+    @ExceptionHandler(InvalidOperationException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidOperationError(InvalidOperationException exception,
+                                                                HttpServletRequest request){
+
+        return buildErrorResponse(HttpStatus.BAD_REQUEST, exception.getMessage(), request);
+
+    }
+
     @ExceptionHandler(DuplicateResourceException.class)
     public ResponseEntity<ErrorResponse> handleDuplicate(DuplicateResourceException exception,
                                                                 HttpServletRequest request){
@@ -64,6 +72,23 @@ public class GlobalExceptionHandler {
                                                             HttpServletRequest request){
 
         return buildErrorResponse(HttpStatus.UNAUTHORIZED, exception.getMessage(), request);
+
+    }
+
+    @ExceptionHandler(InvalidFileException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidFileErrors(InvalidFileException exception,
+                                                                    HttpServletRequest request){
+
+        return buildErrorResponse(HttpStatus.BAD_REQUEST, exception.getMessage(), request);
+
+    }
+
+    @ExceptionHandler(StorageException.class)
+    public ResponseEntity<ErrorResponse> handleStorageErrors(StorageException exception,
+                                                                 HttpServletRequest request){
+        log.error(exception.getMessage(), exception);
+
+        return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to store file.", request);
 
     }
 

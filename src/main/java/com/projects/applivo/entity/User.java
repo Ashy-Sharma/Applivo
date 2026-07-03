@@ -73,4 +73,9 @@ public class User implements UserDetails {
     public boolean isEnabled() {
         return isActive;
     }
+
+    @Override
+    public String getUsername() {
+        return email;
+    }
 }

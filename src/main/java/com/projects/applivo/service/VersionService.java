@@ -37,6 +37,8 @@ public class VersionService {
 
     private final AppVersionRepository appVersionRepository;
 
+    private final VersionPersistenceService versionPersistenceService;
+
     private App getOwnedApp(Long appId, User developer){
         return appRepository.findByIdAndDeveloper(appId, developer)
                 .orElseThrow(() ->
@@ -49,40 +51,30 @@ public class VersionService {
                         new ResourceNotFoundException("Version not found."));
     }
 
-    @Transactional
     public UploadResponse uploadVersion(Long appId, MultipartFile file,
-                                        UploadVersionRequest request,
+                                        String versionTag,
                                         User developer){
         App app = getOwnedApp(appId, developer);
-        if (appVersionRepository.existsByAppAndVersionTag(app, request.getVersionTag())){
-            throw new DuplicateResourceException("Version " + request.getVersionTag() + " already exists.");
+        if (appVersionRepository.existsByAppAndVersionTag(app, versionTag)){
+            throw new DuplicateResourceException("Version " + versionTag + " already exists.");
         }
 
-        String relativeDir = app.getId() + "/" + request.getVersionTag();
+        String relativeDir = app.getId() + "/" + versionTag;
 
         String relativePath = storageService.store(file, relativeDir);
 
-        AppVersion version = AppVersion.builder()
-                .app(app)
-                .versionTag(request.getVersionTag())
-                .filePath(relativePath)
-                .sizeBytes(file.getSize())
-                .build();
-
         try {
-            AppVersion saved = appVersionRepository.save(version);
-            return appVersionMapper.toUploadResponse(saved);
-        }catch (RuntimeException e){
+            return versionPersistenceService.saveVersion(app, versionTag, relativePath, file.getSize());
+        } catch (RuntimeException e) {
             try {
                 storageService.delete(relativePath);
-            }catch (StorageException exception){
-                log.warn("Failed to clean up orphaned file : {}",
-                        relativePath,
-                        exception);
+            } catch (StorageException ex) {
+                log.warn("Failed to clean up orphaned file: {}", relativePath, ex);
             }
             throw e;
         }
     }
+
 
     @Transactional
     public void deleteVersion(Long appId, Long versionId, User developer){

@@ -5,6 +5,8 @@ import com.projects.applivo.dto.response.AppVersionResponse;
 import com.projects.applivo.dto.response.UploadResponse;
 import com.projects.applivo.service.VersionService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -26,16 +28,18 @@ public class VersionController {
 
     @PostMapping
     @PreAuthorize("hasAnyRole('DEVELOPER', 'ADMIN')")
-    public ResponseEntity<UploadResponse> uploadVersion(@RequestPart("file")MultipartFile file,
-                                                        @RequestPart("metadata") @Valid UploadVersionRequest request,
-                                                        @PathVariable Long appId){
+    public ResponseEntity<UploadResponse> uploadVersion(
+            @RequestPart("file") MultipartFile file,
+            @RequestParam("versionTag") @NotBlank @Size(max = 50) String versionTag,
+            @PathVariable Long appId) {
+
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(
                         versionService.uploadVersion(
                                 appId,
                                 file,
-                                request,
+                                versionTag,
                                 getCurrentUser()
                         )
                 );

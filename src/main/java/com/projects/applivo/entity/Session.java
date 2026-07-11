@@ -2,6 +2,7 @@ package com.projects.applivo.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.Instant;
 
@@ -30,19 +31,20 @@ public class Session {
     private String emulatorContainerId;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private Status status;
+    @Column(name = "session_status", nullable = false)
+    private SessionStatus sessionStatus;
 
-    @Column(name = "started_at", insertable = false, updatable = false)
-    private Instant startedAt;
+    @CreationTimestamp
+    @Column(name = "started_at", updatable = false)
+    private Instant startedAt = Instant.now();
 
     @Column(name = "ended_at")
     private Instant endedAt;
 
-    @Column(name = "last_activity_at")
+    @Column(name = "last_activity_at", nullable = false)
     private Instant lastActivityAt;
 
-    @OneToOne(mappedBy = "session", fetch = FetchType.LAZY)
+    @OneToOne(mappedBy = "session")
     private EmulatorInstance emulatorInstance;
 
 }

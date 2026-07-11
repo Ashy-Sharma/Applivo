@@ -1,176 +1,143 @@
+got this while debugging :
 
-storage/StorageService.java
-Why a dedicated storage package: File I/O is infrastructure, not business logic. AppService should not know where files live on disk.
-Methods:
-store(MultipartFile file, Long appId, String versionTag) → String
-Returns the relative file path stored in DB. Never store absolute paths — if you move the server, all paths break.
-Why these parameters: path structure should be /{appId}/{versionTag}/filename.apk. Organized by app and version so cleanup is trivial — delete the folder, all versions gone.
-Internally does:
+I think we've found it.
 
-Validate file is not empty
-Validate extension is .apk via StorageConfig.allowedExtensions
-Validate size does not exceed StorageConfig.maxFileSizeMb
-Sanitize filename — strip path traversal characters (../, /)
-Generate unique filename — UUID + original_filename prevents collisions and overwrites
-Create directory structure if needed
-Write file to disk via Files.copy()
-Return relative path
+Compare the working container:
 
-delete(String filePath) → void
-
-Takes the stored relative path
-Resolves against baseUploadPath
-Deletes file, logs warning if file not found (don't throw — DB record might still need cleanup)
-
-getAbsolutePath(String relativePath) → Path
-
-Resolves relative path against base path
-Used by download/stream endpoints later
-
-validateFile(MultipartFile file) → void (private)
-
-Extension check
-Size check
-Null/empty check
-Throws InvalidFileException if any check fails
+5554 -> published
+5555 -> published
+6080 -> published
 
 
-exception/InvalidFileException.java
-Why: You already have InvalidOperationException but file validation failures are a distinct category. Clients need to know "your file is wrong" vs "your operation is invalid". Maps to 400.
-Add handler in GlobalExceptionHandler:
+with the Java-created container you posted earlier:
 
-Catches InvalidFileException → returns 400 with message
-
-
-exception/StorageException.java
-Why: Disk I/O failures are server-side, not client errors. Maps to 500. Separate from InvalidFileException so the caller knows whether to return 400 or 500.
-Add handler in GlobalExceptionHandler:
-
-Catches StorageException → returns 500 with generic message, logs full exception
+"PortBindings": {
+    "5554/tcp": [{ "HostPort": "5564" }],
+    "6080/tcp": [{ "HostPort": "6090" }]
+}
 
 
-dto/request/UploadVersionRequest.java
-Why not just MultipartFile: Version upload needs metadata alongside the file. versionTag must come with the APK. Using a DTO alongside @RequestPart in multipart requests keeps it clean.
-Fields:
+There is no binding for 5555/tcp.
 
-String versionTag — @NotBlank @Size(max=50)
-No appId here — comes from path variable, not request body
+This is a bug in createAndStartContainer()
 
+Earlier you showed:
 
-dto/response/UploadResponse.java
-Why separate from AppVersionResponse: Upload response is immediate confirmation with minimal data. AppVersionResponse is for listing. Different shapes for different purposes.
-Fields:
+ExposedPort adb = ExposedPort.tcp(emulatorConfig.getBaseAdbPort());
+ExposedPort vnc = ExposedPort.tcp(emulatorConfig.getBaseVncPort());
 
-Long versionId
-String versionTag
-Long sizeBytes
-Instant uploadedAt
-String message — "APK uploaded successfully"
+Ports ports = new Ports();
+ports.bind(adb, Ports.Binding.bindPort(adbPort));
+ports.bind(vnc, Ports.Binding.bindPort(vncPort));
 
 
-service/VersionService.java
-Why separate from AppService: [Certain] If you put version management in AppService, that class becomes 400 lines. Version operations have their own complexity — they need both StorageService and AppRepository and AppVersionRepository. Single responsibility.
-Methods:
-uploadVersion(Long appId, MultipartFile file, UploadVersionRequest request, User developer) → UploadResponse
-
-Verify app exists and belongs to developer via AppRepository.findByIdAndDeveloper()
-Check version tag not already used via AppVersionRepository.existsByAppAndVersionTag()
-Call StorageService.store() to save file, get back relative path
-Build AppVersion entity with path, size from file.getSize(), isActive = true
-Save entity
-Return UploadResponse
-[Certain] Wrap in @Transactional — if DB save fails after file write, you have an orphaned file. Log a warning for cleanup.
-
-deleteVersion(Long appId, Long versionId, User developer) → void
-
-Verify app ownership
-Fetch version via findByIdAndApp()
-[Certain] Check: is this the only active version and is the app published? If yes, throw InvalidOperationException — you cannot delete the last APK of a live app.
-Call StorageService.delete() with stored path
-Delete entity
-
-setActiveVersion(Long appId, Long versionId, User developer) → AppVersionResponse
-
-Fetch app with ownership check
-Fetch version, verify it belongs to this app
-Set isActive = true on target version
-[Likely] Deactivate other versions — depends on your business decision. Can one app have multiple active versions? Your schema allows it but your demo flow probably needs exactly one active version at a time.
-Save
-
-getVersions(Long appId, User developer) → List<AppVersionResponse>
-
-Fetch all versions for app, ordered by uploadedAt DESC
+You're only exposing:
 
 
-controller/VersionController.java
-Annotation: @RestController @RequestMapping("/api/apps/{appId}/versions")
-Why nested under /apps/{appId}: Versions don't exist independently of apps. RESTful resource hierarchy.
-Methods:
-POST /api/apps/{appId}/versions → 201 Created
-
-@RequestPart("file") MultipartFile file
-@RequestPart("metadata") @Valid UploadVersionRequest request
-@PathVariable Long appId
-Extract current user, call versionService.uploadVersion()
-[Certain] Requires DEVELOPER or ADMIN role
-
-GET /api/apps/{appId}/versions → 200 OK
-
-Returns List<AppVersionResponse>
-Call versionService.getVersions()
-
-DELETE /api/apps/{appId}/versions/{versionId} → 204 No Content
-
-Call versionService.deleteVersion()
-
-PUT /api/apps/{appId}/versions/{versionId}/activate → 200 OK
-
-Call versionService.setActiveVersion()
 
 
-properties to add to application.properties
-propertiesstorage.base-upload-path=/var/applivo/uploads
-storage.max-file-size-mb=100
-spring.servlet.multipart.max-file-size=100MB
-spring.servlet.multipart.max-request-size=105MB
-[Certain] Without the spring.servlet.multipart settings, Spring Boot's default 1MB limit will reject every APK before it even reaches your controller.
 
-One Decision to Make Now
-[Likely] You need to decide: where does the APK actually live?
-Option A — local filesystem (what I described above): simplest, works for dev and demo, breaks if you ever run multiple instances or the disk fills up.
-Option B — cloud storage (S3/MinIO): the production-correct choice, but adds AWS SDK dependency and complexity you don't need right now.
-[Certain] For a portfolio demo project, local filesystem is the right call. Just note in your README "production deployment would use object storage (S3/MinIO)" — interviewers know the difference between a portfolio constraint and architectural ignorance.lets go with local filesystem,
-after the basic working project is completed i will go forward other stuff that will require time and complexity[Certain] You're making the right call. Local filesystem for now, refactor to object storage later when the core demo flow works.
+emulator console (5554)
 
-One Thing to Nail Down Before You Write a Line of Code
-Your StorageService.store() returns a relative path that gets saved in app_versions.file_path. The relative path format you choose right now is permanent — changing it later means a DB migration to update all existing paths.
-Decide this now and stick to it:
-/{appId}/{versionTag}/{uuid}_{originalFilename}
-Example:
-/42/1.0.0/a3f9c2d1-calculator-pro.apk
-Absolute path on disk = baseUploadPath + relativePath:
-/var/applivo/uploads/42/1.0.0/a3f9c2d1-calculator-pro.apk
-This is the format I'd recommend. App-scoped directories mean cleanup is rm -rf uploads/42/ when an app is deleted — no scattered files to hunt down.
 
-Build Order Within This Day
-1. application.properties — add storage + multipart config
-2. StorageConfig.java — @PostConstruct creates base directory
-3. InvalidFileException + StorageException — add to GlobalExceptionHandler
-4. StorageService.java — store(), delete(), validateFile()
-5. UploadVersionRequest + UploadResponse DTOs
-6. AppVersionResponse DTO
-7. VersionService.java
-8. VersionController.java
-9. Then go back and do App CRUD on top of this
-[Certain] Don't touch AppService or AppController until StorageService compiles and you've manually tested a file write to disk. The upload flow is the riskiest part — get it working in isolation first.
 
-The One Edge Case Most People Miss
-When uploadVersion() succeeds writing to disk but the DB save throws — you have an orphaned APK file with no DB record pointing to it. Your @Transactional won't help here because the file write happened outside the transaction boundary.
-Handle it explicitly in VersionService.uploadVersion():
-try:
-    store file → get path
-    save AppVersion entity with path
-except (any exception after file write):
-    storageService.delete(path)  ← cleanup orphan
-    rethrow
-This is the kind of production thinking that makes an interviewer lean forward. Put it in your README too.
+noVNC (6080)
+
+You're not exposing the ADB port (5555).
+
+The working docker run publishes three ports:
+
+5554  emulator console
+5555  adb
+6080  noVNC
+
+
+Fix
+
+Your method should create three exposed ports.
+
+ExposedPort console = ExposedPort.tcp(5554);
+ExposedPort adb = ExposedPort.tcp(5555);
+ExposedPort webVnc = ExposedPort.tcp(6080);
+
+
+Then
+
+Ports bindings = new Ports();
+
+bindings.bind(console,
+        Ports.Binding.bindPort(consolePort));
+
+bindings.bind(adb,
+        Ports.Binding.bindPort(adbPort));
+
+bindings.bind(webVnc,
+        Ports.Binding.bindPort(vncPort));
+
+
+and
+
+.withExposedPorts(console, adb, webVnc)
+
+
+Why this matters
+
+The image internally does something like
+
+emulator
+        │
+        ▼
+5554  emulator console
+
+5555  adb daemon
+
+
+Publishing only 5554 is not equivalent to publishing both 5554 and 5555.
+
+Your manual docker run exposed both, and that's the one that booted successfully.
+
+I also want to see one thing
+
+Can you show me your current method exactly as it is?
+
+Because I remember you had something like:
+
+ExposedPort adb =
+    ExposedPort.tcp(emulatorConfig.getBaseAdbPort());
+
+
+where baseAdbPort was 5554.
+
+That variable name is misleading.
+
+Do your properties currently look like:
+
+baseAdbPort=5554
+baseVncPort=6080
+
+
+or
+
+baseAdbPort=5555
+
+
+If baseAdbPort is actually 5554, that's another bug. In Android emulator terminology:
+
+
+
+
+
+5554 = emulator console port
+
+
+
+5555 = ADB port
+
+Those are different ports and should have different configuration values.
+
+Can you paste your current application.properties (or the emulator.* section) and the current createAndStartContainer()? I suspect the naming of baseAdbPort is masking this issue.
+
+
+
+if this is the bug, suggest changes in all related files to fix.
+

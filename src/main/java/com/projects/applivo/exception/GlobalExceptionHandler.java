@@ -92,6 +92,14 @@ public class GlobalExceptionHandler {
 
     }
 
+    @ExceptionHandler(EmulatorException.class)
+    public ResponseEntity<ErrorResponse> handleEmulatorException(EmulatorException exception,
+                                                                 HttpServletRequest request){
+
+        return buildErrorResponse(HttpStatus.SERVICE_UNAVAILABLE, exception.getMessage(), request);
+
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGeneric(Exception exception,
                                                        HttpServletRequest request){

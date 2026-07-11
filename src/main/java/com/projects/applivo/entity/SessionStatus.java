@@ -1,6 +1,6 @@
 package com.projects.applivo.entity;
 
-public enum Status {
+public enum SessionStatus {
     CREATING,
     ACTIVE,
     FAILED,

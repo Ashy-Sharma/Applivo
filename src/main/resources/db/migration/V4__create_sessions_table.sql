@@ -3,7 +3,7 @@ create table sessions (
     app_version_id bigint not null,
     user_id bigint not null,
     emulator_container_id varchar(100) null,
-    status enum (
+    session_status enum (
         'CREATING',
         'ACTIVE',
         'FAILED',
@@ -18,7 +18,7 @@ create table sessions (
     foreign key (user_id) references users (id),
 
     index idx_sessions_user (user_id),
-    index idx_sessions_status (status),
-    index idx_sessions_user_active (user_id, status),
+    index idx_sessions_status (session_status),
+    index idx_sessions_user_active (user_id, session_status),
     index idx_sessions_versions (app_version_id)
 );

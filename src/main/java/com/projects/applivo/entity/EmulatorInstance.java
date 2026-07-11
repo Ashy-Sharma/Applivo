@@ -41,4 +41,10 @@ public class EmulatorInstance {
     @Column(name = "last_access_at")
     private Instant lastAccessAt;
 
+    @Column(name = "screen_width")
+    private Integer screenWidth;
+
+    @Column(name = "screen_height")
+    private Integer screenHeight;
+
 }

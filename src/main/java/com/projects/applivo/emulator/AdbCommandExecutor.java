@@ -16,10 +16,9 @@ public class AdbCommandExecutor {
     private final DockerEmulatorManager dockerEmulatorManager;
 
     private final EmulatorConfig emulatorConfig;
-
-    private void sleepFiveSeconds() {
+    private void sleepSeconds(Long sleepTime) {
         try {
-            Thread.sleep(5000);
+            Thread.sleep(sleepTime);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new EmulatorException(
@@ -32,6 +31,7 @@ public class AdbCommandExecutor {
 
         long deadline = System.currentTimeMillis() + emulatorConfig.getBootTimeoutSeconds() * 1000L;
 
+        log.info("Waiting for ADB daemon on container {}", containerId);
         while (System.currentTimeMillis() < deadline){
             try {
                 String devices = dockerEmulatorManager.executeCommand(
@@ -39,16 +39,22 @@ public class AdbCommandExecutor {
                         "adb",
                         "devices"
                 );
+                log.debug("ADB devices output: '{}'", devices);
+
                 if (devices.contains("emulator")){
+                    log.info("ADB connected to emulator on container {}",containerId);
+                    sleepSeconds(2000L);
                     break;
                 }
-            }catch (Exception ignored) {}
+            }catch (Exception e) {
+                log.debug("ADB not read yet: {}", e.getMessage());
+            }
 
-            sleepFiveSeconds();
+            sleepSeconds(5000L);
         }
 
         String output = null;
-
+        log.info("Polling boot animation on container {}", containerId);
         while (System.currentTimeMillis() < deadline){
 
             output = dockerEmulatorManager.executeCommand(
@@ -59,11 +65,14 @@ public class AdbCommandExecutor {
                     "init.svc.bootanim"
             ).trim();
 
+            log.debug("Boot animation status: '{}'", output);
+
             if (output.equals("stopped")){
+                log.info("Emulator booted successfully on conatinaer {}", containerId);
                 return;
             }
 
-            sleepFiveSeconds();
+            sleepSeconds(5000L);
 
         }
         log.debug("Boot poll result: '{}'", output);
@@ -79,9 +88,13 @@ public class AdbCommandExecutor {
                 containerApkPath
         );
 
-        if (!output.trim().equals("Success")){
-            throw new EmulatorException("Apk install failed : " + output);
+        log.debug("APK install output: '{}'", output);
+
+        if (output.contains("Failure") || output.contains("FAILED") || output.contains("Exception")) {
+            throw new EmulatorException("APK install failed: " + output);
         }
+
+        log.info("APK installed successfully on container {}",containerId);
     }
 
     public byte[] takeScreenshot(String containerId){

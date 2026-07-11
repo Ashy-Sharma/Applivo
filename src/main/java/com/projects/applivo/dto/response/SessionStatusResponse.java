@@ -18,4 +18,8 @@ public class SessionStatusResponse {
 
     private String message;
 
+    private Integer screenWidth;
+
+    private Integer screenHeight;
+
 }

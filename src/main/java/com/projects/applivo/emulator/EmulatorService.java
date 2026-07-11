@@ -84,6 +84,11 @@ public class EmulatorService {
             adbCommandExecutor.installApk(containerId, "/tmp/" + apkPath.getFileName());
 
             persistenceService.updateEmulatorStatus(emulatorId, EmulatorStatus.RUNNING);
+
+            ScreenResolution resolution = adbCommandExecutor.getScreenResolution(containerId);
+            persistenceService.updateEmulatorResolution(emulatorId,
+                    resolution.width(), resolution.height());
+
             persistenceService.updateSessionStatus(sessionId, SessionStatus.ACTIVE);
 
             log.info("Emulator {} started successfully for session {}.", containerId, sessionId);
@@ -180,8 +185,6 @@ public class EmulatorService {
             log.error("Cleanup failed. Reason {}", reason, e);
         }
     }
-
-
 
 
 

@@ -22,4 +22,8 @@ public class SessionResponse {
 
     private Instant startedAt;
 
+    private int screenWidth;
+
+    private int screenHeight;
+
 }

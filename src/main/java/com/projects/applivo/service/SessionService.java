@@ -4,14 +4,12 @@ import com.projects.applivo.dto.request.CreateSessionRequest;
 import com.projects.applivo.dto.response.SessionResponse;
 import com.projects.applivo.dto.response.SessionStatusResponse;
 import com.projects.applivo.emulator.EmulatorService;
-import com.projects.applivo.entity.AppVersion;
-import com.projects.applivo.entity.Session;
-import com.projects.applivo.entity.SessionStatus;
-import com.projects.applivo.entity.User;
+import com.projects.applivo.entity.*;
 import com.projects.applivo.exception.InvalidOperationException;
 import com.projects.applivo.exception.ResourceNotFoundException;
 import com.projects.applivo.repository.AppRepository;
 import com.projects.applivo.repository.AppVersionRepository;
+import com.projects.applivo.repository.EmulatorInstanceRepository;
 import com.projects.applivo.repository.SessionRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +27,8 @@ public class SessionService {
     private final AppVersionRepository appVersionRepository;
 
     private final EmulatorService emulatorService;
+
+    private final EmulatorInstanceRepository emulatorInstanceRepository;
 
     private final AppRepository appRepository;
 
@@ -73,10 +73,28 @@ public class SessionService {
     public SessionStatusResponse getSessionStatus(Long sessionId, User user){
 
         Session session = getOwnedSession(sessionId, user);
+
+        Integer screenWidth = null;
+        Integer screenHeight = null;
+
+        if (session.getSessionStatus() == SessionStatus.ACTIVE && session.getEmulatorContainerId() != null){
+
+            EmulatorInstance emulator = emulatorInstanceRepository
+                    .findByContainerId(session.getEmulatorContainerId())
+                    .orElse(null);
+
+            if (emulator != null){
+                screenWidth = emulator.getScreenWidth();
+                screenHeight = emulator.getScreenHeight();
+            }
+        }
+
         return SessionStatusResponse.builder()
                 .sessionId(session.getId())
                 .status(session.getSessionStatus().name())
                 .message(resolveMessage(session.getSessionStatus()))
+                .screenHeight(screenHeight)
+                .screenWidth(screenWidth)
                 .build();
 
     }

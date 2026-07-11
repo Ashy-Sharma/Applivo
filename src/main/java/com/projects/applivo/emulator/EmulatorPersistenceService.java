@@ -49,4 +49,13 @@ public class EmulatorPersistenceService {
             emulatorRepository.save(e);
         });
     }
+
+    @Transactional
+    public void updateEmulatorResolution(Long emulatorId, int width, int height) {
+        emulatorRepository.findById(emulatorId).ifPresent(e -> {
+            e.setScreenWidth(width);
+            e.setScreenHeight(height);
+            emulatorRepository.save(e);
+        });
+    }
 }

@@ -142,7 +142,7 @@ public class SessionService {
             case CREATING ->
                 "Emulator is starting, please wait....";
             case ACTIVE ->
-                "Session is read.";
+                "Session is ready.";
             case FAILED ->
                     "Session failed to start.";
             case ENDED ->

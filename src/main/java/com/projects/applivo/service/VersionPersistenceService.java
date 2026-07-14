@@ -19,6 +19,9 @@ public class VersionPersistenceService {
     @Transactional
     public UploadResponse saveVersion(App app, String versionTag,
                                       String relativePath, long sizeBytes) {
+
+        appVersionRepository.deactivateAllForApp(app);
+
         AppVersion version = AppVersion.builder()
                 .app(app)
                 .versionTag(versionTag)

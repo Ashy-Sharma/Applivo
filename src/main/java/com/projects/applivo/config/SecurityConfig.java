@@ -19,10 +19,14 @@ public class SecurityConfig {
 
     private final AuthenticationProvider authenticationProvider;
 
+    private final CorsConfig corsConfig;
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception{
         http
                 .csrf(AbstractHttpConfigurer::disable)
+
+                .cors(cors -> cors.configurationSource(corsConfig.corsConfigurationSource()))
 
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()

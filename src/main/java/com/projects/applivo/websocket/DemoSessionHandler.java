@@ -50,22 +50,13 @@ public class DemoSessionHandler {
 
     @MessageMapping("/demo/{sessionId}/start-stream")
     public void startStream(@DestinationVariable Long sessionId,
-                            Principal principal,
-                            SimpMessageHeaderAccessor headerAccessor){
+                            Principal principal){
 
         Session session = getActiveSession(sessionId, principal);
 
-        WebSocketSession webSocketSession = (WebSocketSession) headerAccessor.getSessionAttributes().get("wsSession");
-
-        if (webSocketSession == null){
-            log.warn("WebSocket session not found for session {}", sessionId);
-            return;
-        }
-
         streamingService.startStreaming(
                 sessionId,
-                session.getEmulatorContainerId(),
-                webSocketSession
+                session.getEmulatorContainerId()
         );
 
     }

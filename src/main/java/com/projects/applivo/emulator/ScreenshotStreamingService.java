@@ -3,6 +3,7 @@ package com.projects.applivo.emulator;
 import com.projects.applivo.websocket.ScreenshotMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
@@ -19,19 +20,21 @@ import java.util.concurrent.*;
 public class ScreenshotStreamingService {
 
     private final EmulatorService emulatorService;
-    private final ObjectMapper objectMapper;
+    private final SimpMessagingTemplate messagingTemplate;
 
     private final Map<Long, ScheduledFuture<?>> activeStreams = new ConcurrentHashMap<>();
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(10);
 
-    public void startStreaming(Long sessionId, String containerId, WebSocketSession webSocketSession){
+    public void startStreaming(Long sessionId, String containerId){
+
+        if (isStreaming(sessionId)){
+            return;
+        }
+
+        String destination = "/topic/demo/" + sessionId;
 
         ScheduledFuture<?> future = scheduler.scheduleAtFixedRate(() -> {
             try {
-                if (!webSocketSession.isOpen()){
-                    stopStreaming(sessionId);
-                    return;
-                }
 
                 byte[] screenshot = emulatorService.captureScreenshot(containerId);
                 String base64 = Base64.getEncoder().encodeToString(screenshot);
@@ -41,9 +44,7 @@ public class ScreenshotStreamingService {
                         .timestamp(Instant.now())
                         .build();
 
-                webSocketSession.sendMessage(
-                        new TextMessage(objectMapper.writeValueAsString(message))
-                );
+                messagingTemplate.convertAndSend(destination, message);
             } catch (Exception e) {
                 log.error("Screenshot streaming error for session {} : {}", sessionId, e.getMessage());
                 stopStreaming(sessionId);

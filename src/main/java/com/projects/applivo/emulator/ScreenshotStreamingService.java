@@ -36,7 +36,7 @@ public class ScreenshotStreamingService {
         ScheduledFuture<?> future = scheduler.scheduleAtFixedRate(() -> {
             try {
 
-                byte[] screenshot = emulatorService.captureScreenshot(containerId);
+                byte[] screenshot = emulatorService.takeScreenshot(containerId);
                 String base64 = Base64.getEncoder().encodeToString(screenshot);
 
                 ScreenshotMessage message = ScreenshotMessage.builder()

@@ -15,6 +15,7 @@ public class AppVersionMapper {
                 .versionId(appVersion.getId())
                 .sizeBytes(appVersion.getSizeBytes())
                 .message("Apk uploaded successfully.")
+                .compatibilityWarning(appVersion.getCompatibilityWarning())
                 .build();
     }
 

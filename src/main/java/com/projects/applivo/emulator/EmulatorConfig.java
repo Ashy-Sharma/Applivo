@@ -5,6 +5,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+
 @Configuration
 @Getter
 @Component
@@ -33,5 +35,8 @@ public class EmulatorConfig {
 
     @Value("${emulator.base-vnc-port}")
     private int baseVncPort;
+
+    @Value("#{'${emulator.supported-abis}'.split(',')}")
+    private List<String> supportedAbis;
 
 }

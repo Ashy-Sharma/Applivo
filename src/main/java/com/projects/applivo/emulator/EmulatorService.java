@@ -52,6 +52,7 @@ public class EmulatorService {
 
             if (dockerEmulatorManager.getRunningContainerCount()
                     >= emulatorConfig.getMaxConcurrentSessions()) {
+                log.warn("Rejecting session {}: at max concurrent emulator capacity ({})", sessionId, emulatorConfig.getMaxConcurrentSessions());
                 persistenceService.updateSessionStatus(sessionId, SessionStatus.FAILED);
                 return;
             }
@@ -61,7 +62,7 @@ public class EmulatorService {
             int vncPort = allocatePort(emulatorConfig.getBaseVncPort());
 
             containerId = dockerEmulatorManager.createAndStartContainer(
-                    consolePort, adbPort, vncPort);
+                    adbPort, vncPort, consolePort);
 
             EmulatorInstance emulator = EmulatorInstance.builder()
                     .session(session)
@@ -82,7 +83,7 @@ public class EmulatorService {
             Path apkPath = storageService.getAbsolutePath(appVersion.getFilePath());
             dockerEmulatorManager.copyFileToContainer(containerId, apkPath, "/tmp");
             adbCommandExecutor.installApk(containerId, "/tmp/" + apkPath.getFileName());
-
+            adbCommandExecutor.launchApp(containerId, appVersion.getPackageName());
             persistenceService.updateEmulatorStatus(emulatorId, EmulatorStatus.RUNNING);
 
             ScreenResolution resolution = adbCommandExecutor.getScreenResolution(containerId);
@@ -151,8 +152,14 @@ public class EmulatorService {
         }
     }
 
-    public byte[] captureScreenshot(String containerId){
-        return adbCommandExecutor.takeScreenshot(containerId);
+    public byte[] takeScreenshot(String containerId){
+        return dockerEmulatorManager.executeCommandRaw(
+                containerId,
+                "adb",
+                "exec-out",
+                "screencap",
+                "-p"
+        );
     }
 
     private int allocatePort(int basePort){

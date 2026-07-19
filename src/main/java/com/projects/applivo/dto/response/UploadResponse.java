@@ -19,4 +19,6 @@ public class UploadResponse {
 
     private String message;
 
+    private String compatibilityWarning;
+
 }

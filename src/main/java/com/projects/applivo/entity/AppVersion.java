@@ -40,6 +40,12 @@ public class AppVersion {
     @Column(name = "uploaded_at", insertable = false, updatable = false)
     private Instant uploadedAt;
 
+    @Column(name = "package_name", length = 255)
+    private String packageName;
+
+    @Column(name = "compatibility_warning", length = 500)
+    private String compatibilityWarning;
+
     @OneToMany(mappedBy = "appVersion", fetch = FetchType.LAZY)
     private List<Session> sessions = new ArrayList<>();
 

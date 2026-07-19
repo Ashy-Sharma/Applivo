@@ -3,10 +3,12 @@ package com.projects.applivo.service;
 import com.projects.applivo.dto.request.UploadVersionRequest;
 import com.projects.applivo.dto.response.AppVersionResponse;
 import com.projects.applivo.dto.response.UploadResponse;
+import com.projects.applivo.emulator.EmulatorConfig;
 import com.projects.applivo.entity.App;
 import com.projects.applivo.entity.AppVersion;
 import com.projects.applivo.entity.User;
 import com.projects.applivo.exception.DuplicateResourceException;
+import com.projects.applivo.exception.InvalidFileException;
 import com.projects.applivo.exception.InvalidOperationException;
 import com.projects.applivo.exception.ResourceNotFoundException;
 import com.projects.applivo.exception.StorageException;
@@ -17,12 +19,15 @@ import com.projects.applivo.storage.StorageService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.dongliu.apk.parser.ApkFile;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.awt.dnd.InvalidDnDOperationException;
-import java.util.ArrayList;
-import java.util.List;
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.*;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
 
 @Slf4j
 @Service
@@ -38,6 +43,12 @@ public class VersionService {
     private final AppVersionRepository appVersionRepository;
 
     private final VersionPersistenceService versionPersistenceService;
+
+    private final EmulatorConfig emulatorConfig;
+
+    private static final Set<String> KNOWN_ABI_DIRS = Set.of(
+            "armeabi-v7a", "arm64-v8a", "x86", "x86_64", "armeabi", "mips", "mips64"
+    );
 
     private App getOwnedApp(Long appId, User developer){
         return appRepository.findByIdAndDeveloper(appId, developer)
@@ -60,11 +71,31 @@ public class VersionService {
         }
 
         String relativeDir = app.getId() + "/" + versionTag;
-
         String relativePath = storageService.store(file, relativeDir);
+        Path absoluteFile = storageService.getAbsolutePath(relativePath);
+
+        String packageName;
+        try {
+            try (ApkFile apkFile = new ApkFile(absoluteFile.toFile())) {
+                packageName = apkFile.getApkMeta().getPackageName();
+            }
+            if (packageName == null || packageName.isBlank()) {
+                throw new InvalidFileException("Could not determine package name from APK.");
+            }
+        } catch (InvalidFileException e) {
+            storageService.delete(relativePath);
+            throw e;
+        } catch (Exception e) {
+            log.error("Failed to parse APK manifest for {}", relativePath, e);
+            storageService.delete(relativePath);
+            throw new InvalidFileException("Uploaded file is not a valid APK.");
+        }
+
+        String compatibilityWarning = checkAbiCompatibility(absoluteFile);
 
         try {
-            return versionPersistenceService.saveVersion(app, versionTag, relativePath, file.getSize());
+            return versionPersistenceService.saveVersion(
+                    app, versionTag, relativePath, file.getSize(), packageName, compatibilityWarning);
         } catch (RuntimeException e) {
             try {
                 storageService.delete(relativePath);
@@ -127,7 +158,36 @@ public class VersionService {
     }
 
 
+    private String checkAbiCompatibility(Path apkPath) {
+        Set<String> apkAbis = new HashSet<>();
 
+        try (ZipFile zip = new ZipFile(apkPath.toFile())) {
+            Enumeration<? extends ZipEntry> entries = zip.entries();
+            while (entries.hasMoreElements()) {
+                String name = entries.nextElement().getName();
+                if (name.startsWith("lib/") && name.endsWith(".so")) {
+                    String[] parts = name.split("/");
+                    if (parts.length >= 2 && KNOWN_ABI_DIRS.contains(parts[1])) {
+                        apkAbis.add(parts[1]);
+                    }
+                }
+            }
+        } catch (IOException e) {
+            log.warn("Failed to inspect APK native libraries: {}", apkPath, e);
+            return null;
+        }
 
+        if (apkAbis.isEmpty()) {
+            return null;
+        }
+
+        boolean compatible = apkAbis.stream().anyMatch(emulatorConfig.getSupportedAbis()::contains);
+        if (!compatible) {
+            return "This APK contains native libraries for " + apkAbis
+                    + ", but the emulator supports " + emulatorConfig.getSupportedAbis()
+                    + ". It may fail to install or run.";
+        }
+        return null;
+    }
 
 }

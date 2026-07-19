@@ -81,20 +81,46 @@ public class AdbCommandExecutor {
     }
 
     public void installApk(String containerId, String containerApkPath){
-        String output = dockerEmulatorManager.executeCommand(
+        DockerEmulatorManager.CommandResult result = dockerEmulatorManager.executeCommandWithResult(
                 containerId,
                 "adb",
                 "install",
                 containerApkPath
         );
 
-        log.debug("APK install output: '{}'", output);
+        String stdout = result.stdout();
+        String stderr = result.stderr();
 
-        if (output.contains("Failure") || output.contains("FAILED") || output.contains("Exception")) {
-            throw new EmulatorException("APK install failed: " + output);
+        log.debug("APK install stdout: '{}'", stdout);
+        if (!stderr.isBlank()) {
+            log.debug("APK install stderr: '{}'", stderr);
         }
 
-        log.info("APK installed successfully on container {}",containerId);
+        boolean succeeded = stdout.contains("Success");
+        boolean explicitFailure = stdout.contains("Failure")
+                || stdout.contains("FAILED")
+                || stderr.contains("Failure")
+                || stderr.contains("FAILED");
+
+        if (!succeeded || explicitFailure) {
+            String reason = extractFailureReason(stdout + " " + stderr);
+            throw new EmulatorException("APK install failed: " + reason);
+        }
+
+        log.info("APK installed successfully on container {}", containerId);
+    }
+
+    private String extractFailureReason(String combinedOutput) {
+        if (combinedOutput.contains("INSTALL_FAILED_NO_MATCHING_ABIS")) {
+            return "This APK requires native libraries not supported by this emulator (architecture mismatch).";
+        }
+        if (combinedOutput.contains("INSTALL_FAILED_INSUFFICIENT_STORAGE")) {
+            return "Emulator storage is full.";
+        }
+        if (combinedOutput.contains("INSTALL_FAILED_ALREADY_EXISTS")) {
+            return "App is already installed on this emulator.";
+        }
+        return combinedOutput.trim();
     }
 
     public byte[] takeScreenshot(String containerId){
@@ -212,6 +238,20 @@ public class AdbCommandExecutor {
                 Integer.parseInt(matcher.group(2))
         );
 
+    }
+
+    public void launchApp(String containerId, String packageName) {
+        String output = dockerEmulatorManager.executeCommand(
+                containerId,
+                "adb", "shell", "monkey",
+                "-p", packageName,
+                "-c", "android.intent.category.LAUNCHER",
+                "1"
+        );
+        log.debug("Launch output: '{}'", output);
+        if (output.contains("Error") || output.contains("No activities found")) {
+            throw new EmulatorException("Failed to launch app: " + output);
+        }
     }
 
 }

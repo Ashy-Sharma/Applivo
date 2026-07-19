@@ -18,7 +18,8 @@ public class VersionPersistenceService {
 
     @Transactional
     public UploadResponse saveVersion(App app, String versionTag,
-                                      String relativePath, long sizeBytes) {
+                                      String relativePath, long sizeBytes,
+                                      String packageName, String compatibilityWarning) {
 
         appVersionRepository.deactivateAllForApp(app);
 
@@ -27,6 +28,8 @@ public class VersionPersistenceService {
                 .versionTag(versionTag)
                 .filePath(relativePath)
                 .sizeBytes(sizeBytes)
+                .packageName(packageName)
+                .compatibilityWarning(compatibilityWarning)
                 .build();
 
         AppVersion saved = appVersionRepository.save(version);

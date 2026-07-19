@@ -28,6 +28,12 @@ import java.util.List;
 @Slf4j
 public class DockerEmulatorManager {
 
+    public record CommandResult(byte[] stdoutBytes, String stderr) {
+        public String stdout() {
+            return new String(stdoutBytes, StandardCharsets.UTF_8);
+        }
+    }
+
     private final DockerClient dockerClient;
 
     private final EmulatorConfig emulatorConfig;
@@ -71,50 +77,6 @@ public class DockerEmulatorManager {
                     .exec();
         } catch (NotFoundException e) {
             log.warn("Container {} not found during stop/remove — may already be gone.", containerId);
-        }
-    }
-
-    public String executeCommand(String containerId, String... command){
-
-        try {
-
-            ExecCreateCmdResponse exec = dockerClient.execCreateCmd(containerId)
-                    .withAttachStderr(true)
-                    .withAttachStdout(true)
-                    .withCmd(command)
-                    .exec();
-
-            ByteArrayOutputStream stdout = new ByteArrayOutputStream();
-            ByteArrayOutputStream stderr = new ByteArrayOutputStream();
-
-            dockerClient.execStartCmd(exec.getId())
-                    .exec(new ResultCallback.Adapter<Frame>() {
-                        @Override
-                        public void onNext(Frame frame) {
-                            try {
-                                switch (frame.getStreamType()) {
-                                    case STDOUT -> stdout.write(frame.getPayload());
-                                    case STDERR -> stderr.write(frame.getPayload());
-                                    default -> { }
-                                }
-                            } catch (IOException e) {
-                                throw new RuntimeException(e);
-                            }
-                        }
-                    })
-                    .awaitCompletion();
-
-            String err = stderr.toString(java.nio.charset.StandardCharsets.UTF_8);
-
-            if (!err.isBlank()) {
-                log.warn("Command stderr: {}", err);
-            }
-
-            return stdout.toString(StandardCharsets.UTF_8);
-
-        }catch (InterruptedException e){
-            Thread.currentThread().interrupt();
-            throw new RuntimeException("Interrupted while executing command.", e);
         }
     }
 
@@ -190,11 +152,77 @@ public class DockerEmulatorManager {
     }
 
     public int getRunningContainerCount(){
-       return dockerClient.listContainersCmd()
+        return dockerClient.listContainersCmd()
                 .withStatusFilter(List.of("running"))
                 .withAncestorFilter(List.of(emulatorConfig.getDockerImage()))
                 .exec()
                 .size();
+    }
+
+    public byte[] executeCommandRaw(String containerId, String... command) {
+        CommandResult result = runExec(createExec(containerId, command));
+        if (!result.stderr().isBlank()) {
+            log.warn("Command stderr: {}", result.stderr());
+        }
+        return result.stdoutBytes();
+    }
+
+
+    public CommandResult executeCommandWithResult(String containerId, String... command) {
+        return runExec(createExec(containerId, command));
+    }
+
+
+    public String executeCommand(String containerId, String... command) {
+        CommandResult result = runExec(createExec(containerId, command));
+
+        if (!result.stderr().isBlank()) {
+            log.warn("Command stderr: {}", result.stderr());
+        }
+
+        return result.stdout();
+    }
+
+    private ExecCreateCmdResponse createExec(String containerId, String... command) {
+        return dockerClient.execCreateCmd(containerId)
+                .withAttachStdout(true)
+                .withAttachStderr(true)
+                .withCmd(command)
+                .exec();
+    }
+
+    private CommandResult runExec(ExecCreateCmdResponse exec) {
+        try {
+            ByteArrayOutputStream stdout = new ByteArrayOutputStream();
+            ByteArrayOutputStream stderr = new ByteArrayOutputStream();
+
+            dockerClient.execStartCmd(exec.getId())
+                    .exec(new ResultCallback.Adapter<Frame>() {
+                        @Override
+                        public void onNext(Frame frame) {
+                            try {
+                                switch (frame.getStreamType()) {
+                                    case STDOUT -> stdout.write(frame.getPayload());
+                                    case STDERR -> stderr.write(frame.getPayload());
+                                    default -> {
+                                    }
+                                }
+                            } catch (IOException e) {
+                                throw new RuntimeException(e);
+                            }
+                        }
+                    })
+                    .awaitCompletion();
+
+            return new CommandResult(
+                    stdout.toByteArray(),
+                    stderr.toString(StandardCharsets.UTF_8)
+            );
+
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Interrupted while executing command.", e);
+        }
     }
 
 }

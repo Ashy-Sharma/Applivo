@@ -78,25 +78,28 @@ public class SessionService {
         Integer screenHeight = null;
 
         if (session.getSessionStatus() == SessionStatus.ACTIVE && session.getEmulatorContainerId() != null){
-
             EmulatorInstance emulator = emulatorInstanceRepository
                     .findByContainerId(session.getEmulatorContainerId())
                     .orElse(null);
-
             if (emulator != null){
                 screenWidth = emulator.getScreenWidth();
                 screenHeight = emulator.getScreenHeight();
             }
         }
 
+        String message = (session.getSessionStatus() == SessionStatus.FAILED
+                && session.getFailureReason() != null
+                && !session.getFailureReason().isBlank())
+                ? session.getFailureReason()
+                : resolveMessage(session.getSessionStatus());
+
         return SessionStatusResponse.builder()
                 .sessionId(session.getId())
                 .status(session.getSessionStatus().name())
-                .message(resolveMessage(session.getSessionStatus()))
+                .message(message)
                 .screenHeight(screenHeight)
                 .screenWidth(screenWidth)
                 .build();
-
     }
 
     @Transactional

@@ -58,4 +58,15 @@ public class EmulatorPersistenceService {
             emulatorRepository.save(e);
         });
     }
+
+    @Transactional
+    public void updateSessionFailure(Long sessionId, String reason) {
+        sessionRepository.findById(sessionId).ifPresent(s -> {
+            s.setSessionStatus(SessionStatus.FAILED);
+            s.setFailureReason(reason);
+            s.setEndedAt(Instant.now());
+            sessionRepository.save(s);
+        });
+    }
+
 }

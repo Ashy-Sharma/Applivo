@@ -53,7 +53,7 @@ public class EmulatorService {
             if (dockerEmulatorManager.getRunningContainerCount()
                     >= emulatorConfig.getMaxConcurrentSessions()) {
                 log.warn("Rejecting session {}: at max concurrent emulator capacity ({})", sessionId, emulatorConfig.getMaxConcurrentSessions());
-                persistenceService.updateSessionStatus(sessionId, SessionStatus.FAILED);
+                persistenceService.updateSessionFailure(sessionId, "All emulators are busy. Please try again later.");
                 return;
             }
 
@@ -96,7 +96,7 @@ public class EmulatorService {
 
         } catch (Exception e) {
             log.error("Failed to start emulator for session {}.", sessionId, e);
-            persistenceService.updateSessionStatus(sessionId, SessionStatus.FAILED);
+            persistenceService.updateSessionFailure(sessionId, e.getMessage());
             if (emulatorId != null) {
                 persistenceService.updateEmulatorStatus(emulatorId, EmulatorStatus.FAILED);
             }

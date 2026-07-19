@@ -35,3 +35,4 @@ build/
 # .gitignore
 uploads/
 *.apk
+.env
